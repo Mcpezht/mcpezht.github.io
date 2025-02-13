@@ -47,7 +47,7 @@
             max-width: 300px;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.3"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
@@ -73,42 +73,45 @@
 
         async function initPlayer() {
             if (!isVerified) return;
+            
+            const video = document.getElementById('video');
+            const fallbackMessage = document.getElementById('fallback-message');
+            
             try {
-                const response = await fetch(hlsUrl, { method: 'HEAD' });
-                if (!response.ok) {
-                    showFallback(response.status);
-                    return;
-                }
-
-                const video = document.getElementById('video');
-                const fallbackMessage = document.getElementById('fallback-message');
-                
                 video.style.display = 'block';
                 fallbackMessage.style.display = 'none';
 
                 if (Hls.isSupported()) {
-                    const hls = new Hls();
+                    const hls = new Hls({
+                        xhrSetup: (xhr) => {
+                            xhr.withCredentials = true;
+                        }
+                    });
                     hls.loadSource(hlsUrl);
                     hls.attachMedia(video);
                     hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
                     hls.on(Hls.Events.ERROR, (event, data) => {
-                        if (data.fatal) showFallback();
+                        console.error('HLS Error:', data);
+                        if (data.fatal) showFallback(data.response?.code);
                     });
                 } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                     video.src = hlsUrl;
-                    video.addEventListener('error', showFallback);
+                    video.addEventListener('error', () => showFallback(video.error.code));
+                    video.play().catch(err => showFallback());
                 } else {
                     showFallback();
                 }
             } catch (error) {
+                console.error('初始化错误:', error);
                 showFallback(error.status || 503);
             }
         }
 
         function showFallback(statusCode) {
-            const message = `错误: 直播未开始或无法获取直播流${statusCode ? ` (${statusCode})` : ''}`;
+            const message = `错误: 直播未开始或无法获取直播流${statusCode ? ` (代码 ${statusCode})` : ''}`;
             document.getElementById('fallback-message').innerHTML = message;
             document.getElementById('fallback-message').style.display = 'block';
+            document.getElementById('video').style.display = 'none';
         }
     </script>
 </body>
