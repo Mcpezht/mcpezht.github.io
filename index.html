@@ -51,68 +51,87 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
-    <h1>HLS 直播 (暂时不可用)</h1>
+    <h1>HLS 直播</h1>
     <hr>
-    <video id="video" controls></video>
+    <video id="video" controls muted></video>
     <div id="fallback-message" class="fallback-message" style="display: none;"></div>
     <div class="cf-turnstile" data-sitekey="0x4AAAAAAA8nzBKwOQKDum6Y" data-callback="onVerify"></div>
     <div>
         <hr>
         <div class="footer">Mcpezht Studio<br>人机验证服务由 Cloudflare Turnstile 提供</div>
     </div>
-
-    <script>
-        const hlsUrl = 'https://frp-bar.com:15825/hls/stream.m3u8';
-        let isVerified = false;
+<script>
+    const hlsUrl = 'https://frp-bar.com:15825/hls/stream.m3u8';
+        let hlsInstance = null;
         
         function onVerify(token) {
-            isVerified = true;
             document.querySelector('.cf-turnstile').style.display = 'none';
             initPlayer();
         }
 
-        async function initPlayer() {
-            if (!isVerified) return;
-            
+        function initPlayer() {
             const video = document.getElementById('video');
             const fallbackMessage = document.getElementById('fallback-message');
             
-            try {
-                video.style.display = 'block';
-                fallbackMessage.style.display = 'none';
+            video.style.display = 'block';
+            fallbackMessage.style.display = 'none';
 
-                if (Hls.isSupported()) {
-                    const hls = new Hls({
-                        xhrSetup: (xhr) => {
-                            xhr.withCredentials = true;
+            if (hlsInstance) {
+                hlsInstance.destroy();
+            }
+
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = hlsUrl;
+                video.addEventListener('error', (e) => {
+                    showFallback(`原生播放错误: ${video.error ? video.error.code : '未知'}`);
+                });
+            } 
+            else if (Hls.isSupported()) {
+                hlsInstance = new Hls({
+                    xhrSetup: (xhr) => {
+                        xhr.withCredentials = true;
+                    },
+                    debug: false
+                });
+
+                hlsInstance.loadSource(hlsUrl);
+                hlsInstance.attachMedia(video);
+                
+                hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+                    console.error('HLS Error:', data);
+                    if (data.fatal) {
+                        switch(data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                showFallback('网络错误，正在重试...');
+                                hlsInstance.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hlsInstance.recoverMediaError();
+                                break;
+                            default:
+                                showFallback('无法恢复的播放错误');
+                                hlsInstance.destroy();
+                                break;
                         }
-                    });
-                    hls.loadSource(hlsUrl);
-                    hls.attachMedia(video);
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-                    hls.on(Hls.Events.ERROR, (event, data) => {
-                        console.error('HLS Error:', data);
-                        if (data.fatal) showFallback(data.response?.code);
-                    });
-                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = hlsUrl;
-                    video.addEventListener('error', () => showFallback(video.error.code));
-                    video.play().catch(err => showFallback());
-                } else {
-                    showFallback();
-                }
-            } catch (error) {
-                console.error('初始化错误:', error);
-                showFallback(error.status || 503);
+                    }
+                });
+            } else {
+                showFallback('当前浏览器不支持HLS播放');
             }
         }
 
-        function showFallback(statusCode) {
-            const message = `错误: 直播未开始或无法获取直播流${statusCode ? ` (代码 ${statusCode})` : ''}`;
-            document.getElementById('fallback-message').innerHTML = message;
-            document.getElementById('fallback-message').style.display = 'block';
+        function showFallback(message = '错误: 直播未开始或无法获取直播流') {
+            const statusDisplay = document.getElementById('fallback-message');
+            statusDisplay.innerHTML = message;
+            statusDisplay.style.display = 'block';
             document.getElementById('video').style.display = 'none';
         }
+
+        window.addEventListener('beforeunload', () => {
+            if (hlsInstance) {
+                hlsInstance.destroy();
+            }
+        });
     </script>
 </body>
 </html>
