@@ -51,7 +51,7 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
-    <h1>HLS 直播</h1>
+    <h1>HLS 直播 - 调试阶段</h1>
     <hr>
     <video id="video" controls></video>
     <div id="fallback-message" class="fallback-message" style="display: none;"></div>
@@ -61,8 +61,7 @@
         <div class="footer">Mcpezht Studio<br>人机验证服务由 Cloudflare Turnstile 提供</div>
     </div>
 <script>
-        const hlsUrl = 'https://101.70.156.105:15825/hls/stream.m3u8';
-        //const hlsUrl = 'https://frp-bar.com:15825/hls/stream.m3u8';
+        const hlsUrl = 'https://frp-bar.com:15825/hls/stream.m3u8';
         //const hlsUrl = 'https://vdse.bdstatic.com//192d9a98d782d9c74c96f09db9378d93.mp4'
         let hlsInstance = null;
         
