@@ -61,7 +61,7 @@
         <div class="footer">Mcpezht Studio<br>人机验证服务由 Cloudflare Turnstile 提供</div>
     </div>
 <script>
-    const hlsUrl = 'https://frp-bar.com:15825/hls/stream.m3u8';
+        const hlsUrl = 'https://frp-bar.com:15825/hls/stream.m3u8';
         let hlsInstance = null;
         
         function onVerify(token) {
@@ -79,11 +79,14 @@
             if (hlsInstance) {
                 hlsInstance.destroy();
             }
-
             if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 video.src = hlsUrl;
                 video.addEventListener('error', (e) => {
-                    showFallback(`原生播放错误: ${video.error ? video.error.code : '未知'}`);
+                    const errorCode = video.error?.code;
+                    showFallback(errorCode);
+                });
+                video.play().catch(err => {
+                    showFallback('AUTOPLAY_BLOCKED');
                 });
             } 
             else if (Hls.isSupported()) {
@@ -102,29 +105,42 @@
                     if (data.fatal) {
                         switch(data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
-                                showFallback('网络错误，正在重试...');
-                                hlsInstance.startLoad();
+                                showFallback('HLS_NETWORK_ERROR');
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
-                                hlsInstance.recoverMediaError();
+                                showFallback('HLS_MEDIA_ERROR');
                                 break;
                             default:
-                                showFallback('无法恢复的播放错误');
-                                hlsInstance.destroy();
+                                showFallback('HLS_FATAL_ERROR');
                                 break;
                         }
                     }
                 });
             } else {
-                showFallback('当前浏览器不支持HLS播放');
+                showFallback('BROWSER_NOT_SUPPORTED');
             }
         }
 
-        function showFallback(message = '错误: 直播未开始或无法获取直播流') {
+        function showFallback(errorType) {
+            const errorMessages = {
+                1: '播放被用户中止 (MEDIA_ERR_ABORTED)',
+                2: '网络错误导致播放失败 (MEDIA_ERR_NETWORK)',
+                3: '视频解码错误 (MEDIA_ERR_DECODE)',
+                4: '不支持的媒体格式 (MEDIA_ERR_SRC_NOT_SUPPORTED)',
+
+                'AUTOPLAY_BLOCKED': '自动播放被阻止，请手动点击播放按钮',
+                'HLS_NETWORK_ERROR': '网络连接错误，正在尝试重新连接...',
+                'HLS_MEDIA_ERROR': '媒体解码错误，尝试恢复播放...',
+                'HLS_FATAL_ERROR': '严重播放错误，请刷新页面重试',
+                'BROWSER_NOT_SUPPORTED': '当前浏览器不支持HLS直播播放',
+
+                'default': '直播流不可用或直播未开始'
+            };
+
+            const message = errorMessages[errorType] || errorMessages.default;
             const statusDisplay = document.getElementById('fallback-message');
-            statusDisplay.innerHTML = message;
+            statusDisplay.innerHTML = `错误: ${message}`;
             statusDisplay.style.display = 'block';
-            // document.getElementById('video').style.display = 'none';
         }
 
         window.addEventListener('beforeunload', () => {
